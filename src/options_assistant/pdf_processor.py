@@ -2,7 +2,7 @@
 PDF Processing Pipeline for Options Book:
    ↓ (upload_pdf)
 PDF in Volume
-   ↓ (parse_pdf_with_ai)
+   ↓ (parse_pdf_with_pymupdf)
 options_parsed_docs table (JSON)
    ↓ (process_chunks)
 options_chunks table (clean text + metadata)
@@ -10,10 +10,12 @@ options_chunks table (clean text + metadata)
 Vector Search Index (embeddings)
 """
 
+import io
 import json
 import re
 from typing import Any
 
+import pymupdf
 from loguru import logger
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
@@ -33,7 +35,7 @@ class PDFProcessor:
     """
     PDFProcessor handles the complete workflow of:
     - Uploading the options book PDF to Unity Catalog Volume
-    - Parsing the PDF with ai_parse_document
+    - Parsing the PDF with PyMuPDF to extract text blocks
     - Extracting and cleaning text chunks
     - Saving chunks to Delta tables
     """
@@ -80,9 +82,87 @@ class PDFProcessor:
 
         logger.info(f"Successfully uploaded PDF to {volume_path}")
 
+    @staticmethod
+    def _parse_pdf_with_pymupdf(pdf_binary: bytes) -> str:
+        """
+        Parse PDF binary content using PyMuPDF and return JSON structure.
+
+        Args:
+            pdf_binary: Binary content of the PDF file
+
+        Returns:
+            JSON string with structure similar to ai_parse_document:
+            {
+                "document": {
+                    "elements": [
+                        {"id": "page_0_para_0", "type": "paragraph", "content": "..."},
+                        ...
+                    ]
+                }
+            }
+        """
+        try:
+            # Open PDF from bytes
+            doc = pymupdf.open(stream=pdf_binary, filetype="pdf")
+
+            elements = []
+            element_id = 0
+
+            # Extract text from each page
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+
+                # Extract text blocks from the page
+                # PyMuPDF returns blocks with formatting info
+                blocks = page.get_text("blocks")
+
+                for block_num, block in enumerate(blocks):
+                    # block format: (x0, y0, x1, y1, "text content", block_no, block_type)
+                    if len(block) >= 5:
+                        text_content = block[4]
+
+                        # Skip empty blocks
+                        if not text_content.strip():
+                            continue
+
+                        # Determine element type based on text characteristics
+                        # Simple heuristic: if text is short and ends with certain patterns,
+                        # it might be a heading
+                        text_stripped = text_content.strip()
+                        if len(text_stripped) < 100 and (
+                            text_stripped.isupper() or
+                            not text_stripped.endswith('.')
+                        ):
+                            element_type = "heading"
+                        else:
+                            element_type = "paragraph"
+
+                        elements.append({
+                            "id": f"page_{page_num}_block_{block_num}",
+                            "type": element_type,
+                            "content": text_content,
+                            "page": page_num
+                        })
+                        element_id += 1
+
+            doc.close()
+
+            # Create JSON structure similar to ai_parse_document
+            result = {
+                "document": {
+                    "elements": elements
+                }
+            }
+
+            return json.dumps(result)
+
+        except Exception as e:
+            logger.error(f"Error parsing PDF with PyMuPDF: {e}")
+            return json.dumps({"document": {"elements": []}})
+
     def parse_pdf_with_ai(self) -> None:
         """
-        Parse PDF using ai_parse_document and store in options_parsed_docs table.
+        Parse PDF using PyMuPDF and store in options_parsed_docs table.
         """
         logger.info(f"Parsing PDF from {self.pdf_path}")
 
@@ -110,23 +190,27 @@ class PDFProcessor:
             )
             return
 
-        # Parse the PDF
+        # Parse the PDF using PyMuPDF
         pdf_volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}"
 
-        self.spark.sql(f"""
-            INSERT INTO {self.parsed_table}
-            SELECT
-                '{self.cfg.pdf_filename}' as pdf_filename,
-                ai_parse_document(content) AS parsed_content,
-                current_timestamp() AS parsed_at
-            FROM READ_FILES(
-                "{pdf_volume_path}",
-                format => 'binaryFile'
-            )
-            WHERE path LIKE '%{self.cfg.pdf_filename}'
-        """)
+        # Create UDF for PyMuPDF parsing
+        parse_udf = udf(self._parse_pdf_with_pymupdf, StringType())
 
-        logger.info(f"Parsed PDF and saved to {self.parsed_table}")
+        # Read PDF binary content and parse it
+        pdf_df = self.spark.read.format("binaryFile").load(pdf_volume_path)
+        pdf_df = pdf_df.filter(col("path").contains(self.cfg.pdf_filename))
+
+        # Apply PyMuPDF parsing
+        parsed_df = pdf_df.select(
+            lit(self.cfg.pdf_filename).alias("pdf_filename"),
+            parse_udf(col("content")).alias("parsed_content"),
+            current_timestamp().alias("parsed_at")
+        )
+
+        # Save to table
+        parsed_df.write.format("delta").mode("append").saveAsTable(self.parsed_table)
+
+        logger.info(f"Parsed PDF with PyMuPDF and saved to {self.parsed_table}")
 
     @staticmethod
     def _extract_chunks(parsed_content_json: str) -> list[tuple[str, str, str]]:

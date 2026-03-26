@@ -4,7 +4,7 @@ Options Book Ingestion Notebook
 
 This notebook handles the complete ingestion pipeline for the options trading book:
 1. Upload the PDF to Databricks Volume
-2. Parse the PDF with AI Parse Documents
+2. Parse the PDF with PyMuPDF to extract text blocks
 3. Extract and clean text chunks
 4. Store chunks in Delta table with Change Data Feed enabled
 
@@ -33,16 +33,13 @@ logger.info(f"Configuration loaded for catalog: {cfg.catalog}, schema: {cfg.sche
 
 # COMMAND ----------
 
-# Create catalog and schema if they don't exist
-spark.sql(f"CREATE CATALOG IF NOT EXISTS {cfg.catalog}")
-logger.info(f"✓ Catalog {cfg.catalog} ready")
-
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {cfg.full_schema_name}")
-logger.info(f"✓ Schema {cfg.full_schema_name} ready")
+# Verify catalog and schema exist (using existing mlops_dev.rsreeram)
+logger.info(f"Using catalog: {cfg.catalog}")
+logger.info(f"Using schema: {cfg.full_schema_name}")
 
 # COMMAND ----------
 
-# Create volume for storing the PDF
+# Create volume for storing the PDF (if it doesn't exist)
 spark.sql(f"""
     CREATE VOLUME IF NOT EXISTS {cfg.full_volume_path}
 """)
@@ -95,11 +92,21 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 2: Parse PDF with AI Parse Documents
+# MAGIC ## Step 2: Parse PDF with PyMuPDF
 # MAGIC
-# MAGIC Use Databricks AI Parse Documents to intelligently extract text from the PDF.
-# MAGIC This handles complex layouts, tables, and multi-column text better than
-# MAGIC traditional PDF parsing libraries.
+# MAGIC Use PyMuPDF to extract text blocks from the PDF.
+# MAGIC PyMuPDF provides reliable text extraction with block-level granularity,
+# MAGIC preserving the document structure.
+
+# COMMAND ----------
+
+# Clear existing parsed data to re-parse with PyMuPDF
+spark.sql(f"""
+    DELETE FROM {cfg.catalog}.{cfg.schema}.options_parsed_docs
+    WHERE pdf_filename = '{cfg.pdf_filename}'
+""")
+spark.sql(f"TRUNCATE TABLE {cfg.catalog}.{cfg.schema}.options_chunks")
+logger.info("✓ Cleared existing parsed data")
 
 # COMMAND ----------
 
@@ -142,15 +149,22 @@ logger.info(f"Total chunks: {chunk_count}")
 # Average chunk length
 from pyspark.sql.functions import length, avg, min as spark_min, max as spark_max
 
-stats = chunks_df.select(
-    avg(length("text")).alias("avg_length"),
-    spark_min(length("text")).alias("min_length"),
-    spark_max(length("text")).alias("max_length"),
-).collect()[0]
+if chunk_count > 0:
+    stats = chunks_df.select(
+        avg(length("text")).alias("avg_length"),
+        spark_min(length("text")).alias("min_length"),
+        spark_max(length("text")).alias("max_length"),
+    ).collect()[0]
 
-logger.info(f"Average chunk length: {stats['avg_length']:.2f} characters")
-logger.info(f"Min chunk length: {stats['min_length']} characters")
-logger.info(f"Max chunk length: {stats['max_length']} characters")
+    avg_len = stats['avg_length'] if stats['avg_length'] is not None else 0
+    min_len = stats['min_length'] if stats['min_length'] is not None else 0
+    max_len = stats['max_length'] if stats['max_length'] is not None else 0
+
+    logger.info(f"Average chunk length: {avg_len:.2f} characters")
+    logger.info(f"Min chunk length: {min_len} characters")
+    logger.info(f"Max chunk length: {max_len} characters")
+else:
+    logger.warning("No chunks created - check if PDF was parsed correctly")
 
 # Chunks by element type
 logger.info("\n=== Chunks by Element Type ===")

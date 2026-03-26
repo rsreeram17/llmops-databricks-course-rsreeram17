@@ -2,8 +2,8 @@
 
 # Development environment
 dev:
-  catalog: main
-  schema: options_assistant
+  catalog: mlops_dev
+  schema: rsreeram
   volume: options_files
   llm_endpoint: databricks-llama-4-maverick
   embedding_endpoint: databricks-gte-large-en
@@ -13,8 +13,8 @@ dev:
 
 # Acceptance/Staging environment
 acc:
-  catalog: main
-  schema: options_assistant
+  catalog: mlops_dev
+  schema: rsreeram
   volume: options_files
   llm_endpoint: databricks-meta-llama-3-1-70b-instruct
   embedding_endpoint: databricks-gte-large-en
@@ -24,8 +24,8 @@ acc:
 
 # Production environment
 prd:
-  catalog: main
-  schema: options_assistant
+  catalog: mlops_dev
+  schema: rsreeram
   volume: options_files
   llm_endpoint: databricks-meta-llama-3-1-70b-instruct
   embedding_endpoint: databricks-gte-large-en

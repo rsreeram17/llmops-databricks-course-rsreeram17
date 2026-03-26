@@ -1,0 +1,19 @@
+resources:
+  jobs:
+    vector_search_setup_job:
+      name: options-vector-search-setup
+      tags:
+        project_name: llmops-databricks-course-rsreeram17
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - ../dist/*.whl
+
+      tasks:
+        - task_key: setup_vector_search
+          environment_key: default
+          notebook_task:
+            notebook_path: ../notebooks/02_vector_search_setup.py

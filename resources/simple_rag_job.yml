@@ -1,0 +1,23 @@
+resources:
+  jobs:
+    simple_rag_job:
+      name: options-simple-rag
+      tags:
+        project_name: llmops-databricks-course-rsreeram17
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - ../dist/*.whl
+
+      tasks:
+        - task_key: run_simple_rag
+          environment_key: default
+          notebook_task:
+            notebook_path: ../notebooks/03_simple_rag.py
+            base_parameters:
+              env: dev
+              git_sha: "{{bundle.variables.git_sha}}"
+              run_id: "{{job.run_id}}"

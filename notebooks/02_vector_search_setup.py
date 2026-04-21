@@ -11,11 +11,22 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install loguru
+
+# COMMAND ----------
+
+import sys
+
+if "../src" not in sys.path:
+    sys.path.insert(0, "../src")
+
+# COMMAND ----------
+
+from databricks.vector_search.client import VectorSearchClient
 from loguru import logger
 from pyspark.sql import SparkSession
-from databricks.vector_search.client import VectorSearchClient
 
-from options_assistant.config import load_config, get_env
+from options_assistant.config import get_env, load_config
 from options_assistant.vector_search import VectorSearchManager
 
 # COMMAND ----------
@@ -138,7 +149,7 @@ vs_manager.create_endpoint_if_not_exists()
 
 index = vs_manager.create_or_get_index()
 
-logger.info(f"\n✓ Vector search setup complete!")
+logger.info("\n✓ Vector search setup complete!")
 logger.info(f"  Index: {vs_manager.index_name}")
 logger.info(f"  Source: {vs_manager.catalog}.{vs_manager.schema}.options_chunks")
 logger.info(f"  Embedding Model: {vs_manager.embedding_model}")
@@ -341,5 +352,5 @@ logger.info(f"  Endpoint: {vs_manager.endpoint_name}")
 
 logger.info("✓ Vector search setup complete!")
 logger.info(f"   - Index: {vs_manager.index_name}")
-logger.info(f"   - Chunks embedded: Ready for Q&A!")
+logger.info("   - Chunks embedded: Ready for Q&A!")
 logger.info("\nYou can now build your Q&A system using this vector search!")

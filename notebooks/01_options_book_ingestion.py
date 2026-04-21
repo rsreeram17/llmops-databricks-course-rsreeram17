@@ -13,8 +13,19 @@ The processed chunks will be used for vector search in subsequent notebooks.
 
 # COMMAND ----------
 
-from pyspark.sql import SparkSession
+# MAGIC %pip install loguru pymupdf
+
+# COMMAND ----------
+
+import sys
+
+if "../src" not in sys.path:
+    sys.path.insert(0, "../src")
+
+# COMMAND ----------
+
 from loguru import logger
+from pyspark.sql import SparkSession
 
 from options_assistant.config import get_env, load_config
 from options_assistant.pdf_processor import PDFProcessor
@@ -147,7 +158,9 @@ chunk_count = chunks_df.count()
 logger.info(f"Total chunks: {chunk_count}")
 
 # Average chunk length
-from pyspark.sql.functions import length, avg, min as spark_min, max as spark_max
+from pyspark.sql.functions import avg, length
+from pyspark.sql.functions import max as spark_max
+from pyspark.sql.functions import min as spark_min
 
 if chunk_count > 0:
     stats = chunks_df.select(

@@ -97,11 +97,26 @@ class VectorSearchManager:
             logger.info(f"✓ Vector search index created: {self.index_name}")
             return index
         except Exception as e:
-            if "RESOURCE_ALREADY_EXISTS" not in str(e):
-                raise
-            # Index exists but get_index failed earlier (transient) — retry
-            logger.info(f"✓ Vector search index exists: {self.index_name}")
-            return self.client.get_index(index_name=self.index_name)
+            error_str = str(e).lower()
+            if "resource_already_exists" in error_str or "already exists" in error_str:
+                # Stale UC entity pointing to a dead endpoint — delete and recreate
+                logger.info(
+                    f"Stale index detected, deleting and recreating: {self.index_name}"
+                )
+                self.client.delete_index(index_name=self.index_name)
+                index = self.client.create_delta_sync_index(
+                    endpoint_name=self.endpoint_name,
+                    source_table_name=source_table,
+                    index_name=self.index_name,
+                    pipeline_type="TRIGGERED",
+                    primary_key="id",
+                    embedding_source_column="text",
+                    embedding_model_endpoint_name=self.embedding_model,
+                    usage_policy_id=self.usage_policy_id,
+                )
+                logger.info(f"✓ Vector search index recreated: {self.index_name}")
+                return index
+            raise
 
     def sync_index(self) -> None:
         """Sync the vector search index with the source table."""

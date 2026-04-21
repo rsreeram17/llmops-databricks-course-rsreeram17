@@ -24,6 +24,10 @@ class ProjectConfig(BaseModel):
         default="You are a helpful AI assistant that answers questions about options trading based on the provided book content.",
         description="System prompt for the assistant"
     )
+    experiment_name: str = Field(
+        default="/Shared/options-assistant-dev",
+        description="MLflow experiment name for tracing and evaluation"
+    )
 
     model_config = {"populate_by_name": True}
 

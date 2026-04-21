@@ -10,6 +10,7 @@ dev:
   warehouse_id: 9c9d5a71fb3773e4
   vector_search_endpoint: options_vs_endpoint
   pdf_filename: options_bok.pdf
+  experiment_name: /Shared/options-assistant-dev
 
 # Acceptance/Staging environment
 acc:
@@ -21,6 +22,7 @@ acc:
   warehouse_id: 9c9d5a71fb3773e4
   vector_search_endpoint: options_vs_endpoint
   pdf_filename: options_bok.pdf
+  experiment_name: /Shared/options-assistant-acc
 
 # Production environment
 prd:
@@ -32,6 +34,7 @@ prd:
   warehouse_id: 9c9d5a71fb3773e4
   vector_search_endpoint: options_vs_endpoint
   pdf_filename: options_bok.pdf
+  experiment_name: /Shared/options-assistant-prd
 
 # Model configuration
 model_config:

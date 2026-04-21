@@ -24,7 +24,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install loguru openai
+# MAGIC %pip install loguru openai pyyaml pydantic databricks-vectorsearch
 
 # COMMAND ----------
 

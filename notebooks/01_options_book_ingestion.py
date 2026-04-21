@@ -13,7 +13,7 @@ The processed chunks will be used for vector search in subsequent notebooks.
 
 # COMMAND ----------
 
-# MAGIC %pip install loguru pymupdf
+# MAGIC %pip install loguru pymupdf pyyaml pydantic
 
 # COMMAND ----------
 

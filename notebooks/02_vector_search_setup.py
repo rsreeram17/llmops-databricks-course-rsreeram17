@@ -11,7 +11,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install loguru
+# MAGIC %pip install loguru pyyaml pydantic databricks-vectorsearch
 
 # COMMAND ----------
 

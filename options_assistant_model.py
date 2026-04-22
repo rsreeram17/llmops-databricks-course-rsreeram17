@@ -4,8 +4,9 @@ This file is uploaded to the MLflow artifact store when the model is logged.
 It must be entirely self-contained: no imports from the local src/ package.
 
 Auth in serving:
-  WorkspaceClient() reads DATABRICKS_HOST and DATABRICKS_TOKEN automatically
-  from environment variables injected by Databricks Model Serving.
+  WorkspaceClient() and VectorSearchClient() both use Databricks' internal
+  credential chain (databricks_utils.get_databricks_host_creds()), which works
+  for both PAT notebooks and M2M OAuth model serving — no env vars required.
 
 Config at serving time:
   MLflow stores model_config.yaml alongside the artifact. ModelConfig reads
@@ -36,7 +37,6 @@ Output format (ResponsesAgentResponse):
 """
 
 import json
-import os
 from typing import Any
 from uuid import uuid4
 
@@ -140,7 +140,7 @@ class OptionsAssistantModel(ResponsesAgent):
 
     # ------------------------------------------------------------------
     def _get_clients(self) -> tuple[Any, Any]:
-        """Build LLM + VectorSearch clients from injected env credentials.
+        """Build LLM + VectorSearch clients using ambient Databricks credentials.
 
         Returns:
             Tuple of (OpenAI client, VectorSearch index object)
@@ -152,14 +152,10 @@ class OptionsAssistantModel(ResponsesAgent):
         # SDK-managed client: no manual token construction needed
         llm = w.serving_endpoints.get_open_ai_client()
 
-        # VectorSearch client uses env vars injected by model serving
-        host = os.environ["DATABRICKS_HOST"]
-        token = os.environ["DATABRICKS_TOKEN"]
-        vsc = VectorSearchClient(
-            workspace_url=host,
-            personal_access_token=token,
-            disable_notice=True,
-        )
+        # No explicit credentials — VectorSearchClient calls
+        # databricks_utils.get_databricks_host_creds() automatically,
+        # which works for both PAT notebooks and M2M OAuth model serving.
+        vsc = VectorSearchClient(disable_notice=True)
         index = vsc.get_index(index_name=self.index_name)
         return llm, index
 
